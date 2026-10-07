@@ -23,11 +23,11 @@ Requires: coreutils
 Requires: cracklib
 Requires: issabel-config_helpers
 
-Requires(post): chkconfig, /bin/cp
+Requires(post): chkconfig, /usr/bin/cp
 Obsoletes: elastix-firstboot
 Provides: elastix-firstboot
 
-# commands: /bin/chvt
+# commands: /usr/bin/chvt
 Requires: kbd
 
 Requires: /usr/sbin/saslpasswd2
@@ -69,9 +69,9 @@ After=asterisk.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "dmesg -D && chvt 2 && /usr/bin/issabel-admin-passwords --init && chvt 1 && dmesg -E"
-#ExecStartPre=-/bin/bash -c "chvt 2 && /usr/src/geoip_install.sh && chvt 1"
-ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/bin/bash -c "dmesg -D && chvt 2 && /usr/bin/issabel-admin-passwords --init && chvt 1 && dmesg -E"
+#ExecStartPre=-/usr/bin/bash -c "chvt 2 && /usr/src/geoip_install.sh && chvt 1"
+ExecReload=/usr/bin/kill -HUP $MAINPID
 RemainAfterExit=no
 WorkingDirectory=/
 Environment=TERM=linux
