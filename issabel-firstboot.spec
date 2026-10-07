@@ -6,8 +6,8 @@
 
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
-Version: 5.0.0
-Release: 2 
+Version: 6.0.0
+Release: 1
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
