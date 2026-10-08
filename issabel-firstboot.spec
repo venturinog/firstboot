@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 1
+Release: 2
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -18,6 +18,14 @@ BuildArch: noarch
 #%else
 Requires: mariadb, mariadb-server, dialog
 #%endif
+# issabel-admin-passwords opens /var/www/db/acl.db with PDO and connects to
+# MariaDB with PDO, but this package declared no PHP dependency at all: it used
+# whatever /usr/bin/php happened to be. On EL10 the unversioned php is 8.3 and
+# the php8.4 metapackage only pulls php8.4-common, not php8.4-cli, so the CLI
+# stayed on 8.3 while the web runs on 8.4. Declared explicitly.
+Requires: php8.4-cli
+Requires: php8.4-pdo
+Requires: php8.4-mysqlnd
 Requires: sed, grep
 Requires: coreutils
 Requires: cracklib
@@ -171,3 +179,16 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Thu Oct 08 2026 Issabel Foundation <info@issabel.org> - 6.0.0-2
+- Declare the PHP packages issabel-admin-passwords uses: php8.4-cli, php8.4-pdo
+  and php8.4-mysqlnd. It opens /var/www/db/acl.db with PDO and connects to
+  MariaDB with PDO, but declared no PHP dependency at all, so it used whatever
+  /usr/bin/php was. On EL10 that is 8.3 while the web runs on 8.4.
+- issabel-admin-passwords: a failure in one password update no longer aborts the
+  rest of the list. The admin password for the framework lives in acl.db and was
+  the last entry, so a failing earlier entry (for example the issabelPBX one
+  when that package is not installed) left it unset. Failures are now collected
+  and reported, and the callers no longer ignore the result.
+- issabel-admin-passwords: --init decides "already configured" from the acl_user
+  password hash instead of the presence of mysqlrootpwd, so a system that was
+  left half configured is repaired instead of being stuck forever.
