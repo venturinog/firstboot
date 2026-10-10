@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 3
+Release: 4
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -36,8 +36,6 @@ Provides: elastix-firstboot
 
 # commands: /usr/bin/chvt
 Requires: kbd
-
-Requires: /usr/sbin/saslpasswd2
 
 %description
 This module contains (or should contain) utilities and configurations that
@@ -131,14 +129,6 @@ if [ $1 -eq 1 ] ; then
                         touch /etc/issabel.conf
 			#echo "mysqlrootpwd=iSsAbEl.2o17" >> /etc/issabel.conf
 		fi
-                if [ -f /etc/issabel.conf  ] ; then
-                        grep 'cyrususerpwd' /etc/issabel.conf &> /dev/null
-                        res=$?
-                        if [ $res != 0 ] ; then
-                            echo "cyrususerpwd=issabel" >> /etc/issabel.conf
-                        fi
-                fi
-
 	fi
 fi
 
@@ -149,13 +139,6 @@ if [ $1 -eq 2 ] ; then
 		echo "Updating in active system -  creating empty /etc/issabel.conf"
                 touch /etc/issabel.conf
 		#echo "mysqlrootpwd=iSsAbEl.2o17" >> /etc/issabel.conf
-	fi
-	if [ -f /etc/issabel.conf  ] ; then
-		grep 'cyrususerpwd' /etc/issabel.conf &> /dev/null
-		res=$?
-		if [ $res != 0 ] ; then
-		    echo "cyrususerpwd=issabel" >> /etc/issabel.conf
-		fi
 	fi
 fi
 
@@ -178,6 +161,9 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Fri Oct 09 2026 Issabel Foundation <info@issabel.org> - 6.0.0-4
+- Drop the cyrus-imapd/saslpasswd2 setup: Issabel 6 no longer ships a local
+  mail server, so the legacy cyrususerpwd is no longer needed.
 * Fri Oct 09 2026 Issabel Foundation <info@issabel.org> - 6.0.0-3
 - Require the unversioned PHP packages (php-*, 8.3 on EL10) instead of the
   versioned php8.4-*, which conflict with the PHP 8.3 in the netinstall base.
