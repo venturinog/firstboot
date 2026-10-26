@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 4
+Release: 5
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -17,6 +17,9 @@ BuildArch: noarch
 #Requires: mysql, mysql-server, dialog
 #%else
 Requires: mariadb, mariadb-server, dialog
+# issabel-admin-passwords now replays deferred sqlite3 scripts with the sqlite3
+# client, so it must be present even if framework is not installed yet.
+Requires: sqlite
 #%endif
 # issabel-admin-passwords opens /var/www/db/acl.db with PDO and connects to
 # MariaDB with PDO, but this package declared no PHP dependency at all: it used
@@ -161,6 +164,18 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Mon Oct 26 2026 Issabel Foundation <info@issabel.org> - 6.0.0-5
+- Apply deferred database scripts with the client recorded by issabel-dbprocess
+  (mysql or sqlite3) instead of always using mysql. A sqlite3 script in the
+  spool always failed and, worse, aborted the loop, so the scripts behind it
+  were never applied.
+- Keep going when one deferred script fails, keep the failed script for a
+  retry and report the failures instead of dropping them silently.
+- Run action_installIssabelPBX() on `--cli init` too, so asteriskuser exists
+  before the deferred GRANT statements run.
+- Grant endpointconfig and meetme to asteriskuser from the compatibility
+  script, which runs once the user exists.
+
 * Fri Oct 09 2026 Issabel Foundation <info@issabel.org> - 6.0.0-4
 - Drop the cyrus-imapd/saslpasswd2 setup: Issabel 6 no longer ships a local
   mail server, so the legacy cyrususerpwd is no longer needed.
