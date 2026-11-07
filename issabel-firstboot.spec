@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 5
+Release: 8
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -32,6 +32,9 @@ Requires: sed, grep
 Requires: coreutils
 Requires: cracklib
 Requires: issabel-config_helpers
+# install_amp requires Asterisk to be running, and the service is part of the
+# generic asterisk package. Keep the dependency version-agnostic.
+Requires: asterisk
 
 Requires(post): chkconfig, /usr/bin/cp
 Obsoletes: elastix-firstboot
@@ -71,6 +74,7 @@ if [ -d /etc/systemd ] ; then
     cat > /usr/lib/systemd/system/issabel-firstboot.service <<'ISSABELFIRSTBOOT'
 [Unit]
 Description=issabel-firstboot.service
+Wants=mariadb.service asterisk.service
 After=getty@tty2.service
 After=mariadb.service
 After=asterisk.service
@@ -93,6 +97,10 @@ TTYVHangup=yes
 WantedBy=default.target
 ISSABELFIRSTBOOT
     systemctl enable issabel-firstboot.service
+    # The asterisk RPM uses systemctl preset, and Rocky's preset policy leaves
+    # the unit disabled. Firstboot needs it running for install_amp, and the
+    # PBX needs it on every boot.
+    systemctl enable asterisk.service >/dev/null 2>&1 || :
 
     cat > /usr/lib/systemd/system/amportal-reload.service <<'AMPORTALRELOAD'
 [Unit]
@@ -164,6 +172,28 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Sat Nov 07 2026 Issabel Foundation <info@issabel.org> - 6.0.0-8
+- Drop the issabel-change-sip step from firstboot: Asterisk 22 no longer
+  supports chan_sip. Keep the amportal restart that was part of that step.
+- Restart fail2ban at the end of firstboot (and of `--cli init`) so the
+  asterisk jail starts after install_amp has generated the logger config and
+  /var/log/asterisk/messages exists.
+
+* Sat Nov 07 2026 Issabel Foundation <info@issabel.org> - 6.0.0-7
+- Do not pull getty@tty2.service into the firstboot transaction. It takes
+  /dev/tty2, and its tty hangup sends SIGHUP to issabel-admin-passwords before
+  the password prompts can run.
+
+* Fri Nov 06 2026 Issabel Foundation <info@issabel.org> - 6.0.0-6
+- Pull in and enable asterisk.service. The asterisk RPM relies on
+  systemctl preset, and Rocky's preset policy leaves it disabled, so firstboot
+  ran install_amp without Asterisk and left the asterisk database missing.
+- Make action_installIssabelPBX() start and wait for Asterisk, pass the
+  existing MariaDB root password on retries, check install_amp's exit status,
+  and keep /installamp when it fails so the next boot can retry.
+- Stop before the password prompts when IssabelPBX initialization fails, so
+  the misleading "IssabelPBX admin password" error is not reported.
+
 * Mon Oct 26 2026 Issabel Foundation <info@issabel.org> - 6.0.0-5
 - Apply deferred database scripts with the client recorded by issabel-dbprocess
   (mysql or sqlite3) instead of always using mysql. A sqlite3 script in the
