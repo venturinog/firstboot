@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 8
+Release: 9
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -172,6 +172,14 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Wed Nov 11 2026 Issabel Foundation <info@issabel.org> - 6.0.0-9
+- Log the result of every deferred database script, with the output of the
+  mysql or sqlite3 client, to /var/log/issabel/firstboot-dbsql.log. The output
+  was captured and thrown away, so a failing script only left a status and the
+  real error (for example "duplicate column name") was lost.
+- Show the last lines of that log in the firstboot warning dialog, and point
+  the --cli path to the same file. The log self-rotates at 1 MB.
+
 * Sat Nov 07 2026 Issabel Foundation <info@issabel.org> - 6.0.0-8
 - Drop the issabel-change-sip step from firstboot: Asterisk 22 no longer
   supports chan_sip. Keep the amportal restart that was part of that step.
