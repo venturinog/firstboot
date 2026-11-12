@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 9
+Release: 10
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -75,7 +75,6 @@ if [ -d /etc/systemd ] ; then
 [Unit]
 Description=issabel-firstboot.service
 Wants=mariadb.service asterisk.service
-After=getty@tty2.service
 After=mariadb.service
 After=asterisk.service
 
@@ -118,6 +117,51 @@ WantedBy=default.target
 
 AMPORTALRELOAD
     systemctl enable amportal-reload.service
+
+    # Show the "wait" notice from early boot and keep the console login closed
+    # until the initial configuration has finished. Previously getty@tty1 was
+    # available minutes before the firstboot dialogs appeared on tty2, so an
+    # administrator could log in while MariaDB still had no root password and
+    # install_amp was writing the Asterisk configuration.
+    cat > /usr/lib/systemd/system/issabel-firstconfig.service <<'ISSABELFIRSTCONFIG'
+[Unit]
+Description=Issabel initial configuration notice
+# issabelPBX leaves /installamp behind when install_amp could not run during
+# its %post (Asterisk was not running), so the marker means the initial
+# configuration is still pending.
+ConditionPathExists=/installamp
+Before=getty@tty1.service
+Before=issabel-firstboot.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# The box has to stay on screen while MariaDB and Asterisk finish starting, so
+# kernel messages are muted here and restored by the `dmesg -E` at the end of
+# issabel-firstboot's ExecStart.
+ExecStart=/usr/bin/bash -c "dmesg -D; dialog --backtitle 'Issabel' --title ' Issabel ' --infobox 'Wait for initial configuration...\n\nIssabel is preparing the database and the PBX.\nThis can take several minutes. Do not power off the machine.\n\nKernel messages are paused while this runs.' 11 64"
+Environment=TERM=linux
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=no
+TTYVHangup=no
+
+[Install]
+WantedBy=default.target
+ISSABELFIRSTCONFIG
+    systemctl enable issabel-firstconfig.service
+
+    # Ordering only: if issabel-firstboot fails, its job ends and the getty
+    # still starts, so a broken firstboot cannot leave the console without a
+    # login.
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/issabel-firstboot.conf <<'GETTYFIRSTBOOT'
+[Unit]
+After=issabel-firstboot.service
+GETTYFIRSTBOOT
+
+    systemctl daemon-reload >/dev/null 2>&1 || :
 else
     chkconfig --del issabel-firstboot
     chkconfig --add issabel-firstboot
@@ -172,6 +216,17 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Thu Nov 12 2026 Issabel Foundation <info@issabel.org> - 6.0.0-10
+- Show a "Wait for initial configuration" notice on tty1 from early boot while
+  MariaDB and Asterisk start, and hold getty@tty1 until issabel-firstboot
+  finishes. Before this, the console login was available minutes before the
+  firstboot dialogs appeared, with MariaDB still having no root password and
+  install_amp writing the Asterisk configuration.
+- The notice is conditional on /installamp, so it only appears while the
+  initial configuration is pending and normal boots are unaffected.
+- Drop the dead After=getty@tty2.service ordering: it could make the firstboot
+  dialogs die on SIGHUP if getty@tty2 was ever started.
+
 * Wed Nov 11 2026 Issabel Foundation <info@issabel.org> - 6.0.0-9
 - Log the result of every deferred database script, with the output of the
   mysql or sqlite3 client, to /var/log/issabel/firstboot-dbsql.log. The output
