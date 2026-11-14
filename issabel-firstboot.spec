@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 10
+Release: 11
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -80,7 +80,12 @@ After=asterisk.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/bash -c "dmesg -D && chvt 2 && /usr/bin/issabel-admin-passwords --init && chvt 1 && dmesg -E"
+ExecStartPre=-/usr/bin/dmesg -D
+ExecStart=/usr/bin/bash -c "chvt 2 && /usr/bin/issabel-admin-passwords --init"
+# ExecStopPost runs whether the start succeeded or not, so a failing install_amp
+# or password prompt no longer leaves the console on tty2 with kernel messages
+# muted until the next boot.
+ExecStopPost=-/usr/bin/bash -c "chvt 1; /usr/bin/dmesg -E"
 #ExecStartPre=-/usr/bin/bash -c "chvt 2 && /usr/src/geoip_install.sh && chvt 1"
 ExecReload=/usr/bin/kill -HUP $MAINPID
 RemainAfterExit=no
@@ -216,6 +221,12 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Thu Nov 12 2026 Issabel Foundation <info@issabel.org> - 6.0.0-11
+- Move the console cleanup of issabel-firstboot to ExecStopPost, which runs
+  also when the unit fails. With the previous "dmesg -D && chvt 2 && ... &&
+  chvt 1 && dmesg -E" chain, a failing install_amp or password prompt left the
+  console on tty2 and kernel messages muted until the next boot.
+
 * Thu Nov 12 2026 Issabel Foundation <info@issabel.org> - 6.0.0-10
 - Show a "Wait for initial configuration" notice on tty1 from early boot while
   MariaDB and Asterisk start, and hold getty@tty1 until issabel-firstboot
