@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 11
+Release: 12
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -29,6 +29,7 @@ Requires: php-cli
 Requires: php-pdo
 Requires: php-mysqlnd
 Requires: sed, grep
+Requires: iproute
 Requires: coreutils
 Requires: cracklib
 Requires: issabel-config_helpers
@@ -221,6 +222,14 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Wed Nov 18 2026 Issabel Foundation <info@issabel.org> - 6.0.0-12
+- Activate the firewall on first boot with a fixed conservative profile,
+  without the old dialog. The management IP is detected with `ip route`,
+  whitelisted before loading, and the firewall is only marked as activated
+  if `fwconfig --load` succeeds. If detection fails the firewall stays off
+  and the administrator can enable it from the GUI.
+- Require iproute for the management IP detection.
+
 * Thu Nov 12 2026 Issabel Foundation <info@issabel.org> - 6.0.0-11
 - Move the console cleanup of issabel-firstboot to ExecStopPost, which runs
   also when the unit fails. With the previous "dmesg -D && chvt 2 && ... &&
