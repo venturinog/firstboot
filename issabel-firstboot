@@ -13,58 +13,16 @@
 # Source networking configuration.
 . /etc/sysconfig/network
 
-issabel_activate_firewall(){
-    local fwdb=/var/www/db/iptables.db
-    local first mgmt rc
-
-    if [ ! -f /usr/share/issabel/privileged/fwconfig ] || [ ! -f "$fwdb" ]; then
-        echo "Firewall not activated: issabel-security is not installed or the database is missing."
-        return 1
-    fi
-
-    first=$(sqlite3 "$fwdb" "SELECT first_time FROM tmp_execute LIMIT 1" 2>/dev/null)
-    # Ya activado (o desactivado explicitamente): no se repite en cada boot.
-    [ "$first" = "1" ] || return 0
-
-    mgmt=$(/usr/sbin/ip -4 route get 1.1.1.1 2>/dev/null \
-        | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
-    if [ -z "$mgmt" ]; then
-        echo "Firewall not activated: management IP not detected. Activate it from Security > Firewall."
-        return 1
-    fi
-
-    # La IP de gestion entra en la whitelist ANTES de cargar: si el perfil
-    # cierra SSH/HTTPS, el administrador sigue entrando desde aqui.
-    /usr/bin/issabel-helper fwconfig --add_wl "$mgmt" >/dev/null 2>&1
-    rc=$?
-    if [ "$rc" -ne 0 ]; then
-        echo "Firewall not activated: could not whitelist $mgmt."
-        return 1
-    fi
-
-    /usr/bin/issabel-helper fwconfig --load >/dev/null 2>&1
-    rc=$?
-    if [ "$rc" -ne 0 ]; then
-        echo "Firewall could not be activated. Use Security > Firewall > Firewall Rules."
-        return 1
-    fi
-
-    sqlite3 "$fwdb" "UPDATE tmp_execute SET first_time=0, exec_in_sys=1" >/dev/null 2>&1
-    echo "Firewall activated. Management IP $mgmt is whitelisted."
-    return 0
-}
-
 start() {
     ret=0
 
     /usr/bin/issabel-admin-passwords --init
     ret=$?
 
-    # Perfil fijo, sin wizard: si es el primer arranque, activa el firewall y
-    # deja la IP de gestion en la whitelist. Si falla, el PBX sigue accesible
-    # y el administrador lo activa desde la GUI.
-    if [ -f /usr/share/issabel/privileged/fwconfig ]; then
-        issabel_activate_firewall
+    # Activacion del firewall en el primer arranque. El script es el mismo que
+    # ejecuta la unidad systemd; en EL10 esta rama de init.d es la de respaldo.
+    if [ -x /usr/share/issabel-firstboot/activate-firewall ]; then
+        /usr/share/issabel-firstboot/activate-firewall
     fi
 
     /sbin/amportal chown >/dev/null 2>&1

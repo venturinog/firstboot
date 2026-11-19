@@ -7,7 +7,7 @@
 Summary: Issabel First Boot Setup
 Name:    issabel-firstboot
 Version: 6.0.0
-Release: 12
+Release: 13
 License: GPL
 Group:   Applications/System
 Source0: issabel-%{modname}-%{version}.tar.gz
@@ -29,7 +29,6 @@ Requires: php-cli
 Requires: php-pdo
 Requires: php-mysqlnd
 Requires: sed, grep
-Requires: iproute
 Requires: coreutils
 Requires: cracklib
 Requires: issabel-config_helpers
@@ -64,6 +63,8 @@ mkdir -p $RPM_BUILD_ROOT/usr/bin/
 mkdir -p $RPM_BUILD_ROOT/usr/sbin/
 mkdir -p $RPM_BUILD_ROOT/usr/local/sbin/
 cp issabel-firstboot $RPM_BUILD_ROOT/etc/init.d/
+cp activate-firewall $RPM_BUILD_ROOT/usr/share/issabel-firstboot/
+chmod 755 $RPM_BUILD_ROOT/usr/share/issabel-firstboot/activate-firewall
 cp change-passwords issabel-admin-passwords $RPM_BUILD_ROOT/usr/bin/
 cp issabel-patreon $RPM_BUILD_ROOT/usr/bin/
 cp generate_self_signed.sh $RPM_BUILD_ROOT/usr/local/sbin
@@ -82,6 +83,10 @@ After=asterisk.service
 [Service]
 Type=oneshot
 ExecStartPre=-/usr/bin/dmesg -D
+# La activacion del firewall va primero y con el prefijo `-`: es independiente
+# de que el asistente de contraseñas termine bien, y un fallo suyo no debe
+# dejar la unidad en failed ni impedir el resto del primer arranque.
+ExecStart=-/usr/share/issabel-firstboot/activate-firewall
 ExecStart=/usr/bin/bash -c "chvt 2 && /usr/bin/issabel-admin-passwords --init"
 # ExecStopPost runs whether the start succeeded or not, so a failing install_amp
 # or password prompt no longer leaves the console on tty2 with kernel messages
@@ -216,12 +221,26 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755, root, root) /etc/init.d/*
 %dir %{_localstatedir}/spool/issabel-mysqldbscripts/
 /usr/share/issabel-firstboot/compat-dbscripts/02-asteriskuser-password.sql
+%attr(755, root, root) /usr/share/issabel-firstboot/activate-firewall
 /usr/bin/change-passwords
 /usr/bin/issabel-admin-passwords
 /usr/bin/issabel-patreon
 %attr(755, root, root) /usr/local/sbin/generate_self_signed.sh
 
 %changelog
+* Wed Nov 18 2026 Issabel Foundation <info@issabel.org> - 6.0.0-13
+- Run the firewall activation from the systemd unit. The activation added in
+  the previous release lived only in the SysV init script, so on EL10 it was
+  never executed and a fresh install stayed without firewall.
+- Move the activation to /usr/share/issabel-firstboot/activate-firewall, shared
+  by the unit and the init script. It now skips an explicitly deactivated
+  firewall, raises first_time before `fwconfig --load` (the loader only builds
+  the chains with first_time=0), rolls back on failure, and saves the applied
+  snapshot like the web page does.
+- Drop the management IP detection and the `fwconfig --add_wl` call: it
+  detected the server's own address, and `--add_wl` does not persist to the
+  whitelist table, so the entry was lost in the same load.
+
 * Wed Nov 18 2026 Issabel Foundation <info@issabel.org> - 6.0.0-12
 - Activate the firewall on first boot with a fixed conservative profile,
   without the old dialog. The management IP is detected with `ip route`,

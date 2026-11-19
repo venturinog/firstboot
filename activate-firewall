@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# Activa el firewall de Issabel en el primer arranque.
+#
+# Lo llama el arranque (la unidad systemd o, sin systemd, el init script) una
+# vez por boot. Solo hace algo cuando la base dice que el firewall nunca se
+# activo (tmp_execute.first_time=1) y el administrador no lo desactivo a
+# proposito (deactivated=0). fwconfig --load solo construye cadenas con
+# first_time=0, asi que el flag se baja antes de cargar; si la carga falla se
+# restaura para reintentar en el proximo arranque.
+
+set -u
+
+FWCONFIG=/usr/share/issabel/privileged/fwconfig
+FWDB=/var/www/db/iptables.db
+AUDIT=/var/log/issabel/audit.log
+
+[ -f "$FWCONFIG" ] && [ -f "$FWDB" ] || exit 0
+
+first=$(sqlite3 "$FWDB" "SELECT first_time FROM tmp_execute LIMIT 1" 2>/dev/null)
+# Ya activado, o todavia no instalado: no se repite en cada boot.
+[ "$first" = "1" ] || exit 0
+
+# La columna se agrego en 6.0.0-28. En una base anterior al version_sql se
+# asume 0 (nunca desactivado).
+deactivated=$(sqlite3 "$FWDB" "SELECT deactivated FROM tmp_execute LIMIT 1" 2>/dev/null)
+[ "$deactivated" = "1" ] && exit 0
+
+audit() {
+    [ -d "$(dirname "$AUDIT")" ] || return 0
+    printf '%s FIREWALL system: firewall.enable result=%s from local.\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$AUDIT" 2>/dev/null || true
+}
+
+# fwconfig solo crea las cadenas cuando first_time=0.
+if ! sqlite3 "$FWDB" "UPDATE tmp_execute SET first_time=0, exec_in_sys=0" 2>/dev/null; then
+    echo "Firewall not activated: the database could not be updated."
+    exit 1
+fi
+
+if ! "$FWCONFIG" --load >/dev/null 2>&1; then
+    # No se deja una activacion a medias: se retiran las cadenas y el flag
+    # vuelve a 1 para que el proximo arranque lo reintente.
+    "$FWCONFIG" --flush --force >/dev/null 2>&1 || true
+    sqlite3 "$FWDB" "UPDATE tmp_execute SET first_time=1, exec_in_sys=0" 2>/dev/null || true
+    audit error
+    echo "Firewall could not be activated. Use Security > Firewall Rules."
+    exit 1
+fi
+
+# Snapshot del estado aplicado, como activateFirewall() en la GUI: es la base
+# de "Descartar cambios".
+sqlite3 "$FWDB" "DROP TABLE IF EXISTS filter_snapshot; CREATE TABLE filter_snapshot AS SELECT * FROM filter" 2>/dev/null || true
+sqlite3 "$FWDB" "UPDATE tmp_execute SET exec_in_sys=1" 2>/dev/null || true
+audit ok
+echo "Firewall activated."
+exit 0

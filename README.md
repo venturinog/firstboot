@@ -23,8 +23,10 @@ On a fresh install the console sequence is:
    notice on `tty1` while MariaDB and Asterisk start. It only runs while
    `/installamp` exists, that is, while the IssabelPBX initialization is still
    pending.
-2. `issabel-firstboot.service` takes `tty2` and initializes IssabelPBX there,
-   then asks for the MariaDB root and web admin passwords.
+2. `issabel-firstboot.service` takes `tty2`, activates the firewall on the
+   first boot (SSH/HTTP/HTTPS stay open; an explicitly deactivated firewall is
+   left alone), and initializes IssabelPBX there, then asks for the MariaDB
+   root and web admin passwords.
 3. `getty@tty1` is ordered after `issabel-firstboot`, so the console login
    appears only when the setup has finished. The ordering does not require
    success: if firstboot fails, its job ends and the login still appears.
